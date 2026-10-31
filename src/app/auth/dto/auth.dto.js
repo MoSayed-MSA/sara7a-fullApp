@@ -5,7 +5,7 @@ const codeRegex = /^\d+$/
 
 export const registerDto = z.object({
     email: z.email().trim().toLowerCase(),
-    name: z.string().trim().toLowerCase().min(2).max(8),
+    name: z.string().trim().toLowerCase().min(2).max(20),
     password: z.string().min(8).max(16).trim().regex(passwordRegex, { message: "Password must contain at least 1 uppercase letter and 1 special character" })
 })
 

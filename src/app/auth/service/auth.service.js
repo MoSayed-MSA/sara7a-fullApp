@@ -11,6 +11,7 @@ import { OtpExpired, OtpNotMatch } from "../utils/error.js";
 import { logger } from "../../../pkg/logger/logger.js";
 import { verifyGoogleAccount } from "../../../lib/utils/google-Oauth.js";
 import fs from 'node:fs'
+import { cacheProvider } from "../../../lib/cache/init.js";
 
 
 export async function register(userData) {
@@ -30,11 +31,9 @@ export async function register(userData) {
 
     // create OTP for email verification
     const otp = await generate0TPCode()
-    await otpRepo.createOTP({
-        code: otp,
-        email: userData.email,
-        expiredAt: new Date(Date.now() + timeToMS(5, "min"))
-    })
+
+    //set otp in cache for 5 minutes
+    await cacheProvider.set(`OTP:${userData.email}`, otp, timeToMS(5, 'min'));
 
     //verify OTP from email 
     await sendEmail(userData.email, "Verify your email", `<p>Your OTP is: <h1>${otp}</h1></p>`);
@@ -44,40 +43,42 @@ export async function register(userData) {
 
 export async function verifyOTP(email, otp) {
     // check user exist
-    const userExist = await authRepo.findUserByEmail(email)
-    if (!userExist) {
-        throw userExist
+    const userExisting = await authRepo.findUserByEmail(email)
+    if (!userExisting) {
+        throw userNotExist
     }
 
     //check if user verified
-    if (userExist.isVerified === true) {
+    if (userExisting.isVerified === true) {
         throw userVerified
-
     }
 
     //check OTP exist
-    const OTP = await otpRepo.findOtpByEmail(email)
-    if (!OTP) {
+    const cachedOtp = await cacheProvider.get(`OTP:${email}`);
+    if (!cachedOtp) {
         throw userNotSignUp
+    }
+
+    if (cachedOtp !== otp) {
+        throw OtpNotMatch;
     }
 
 
     // make user verified
-    if (OTP.code == otp) {
-        await authRepo.updateUserStatus(userExist.email, userExist.isVerified = true)
+    if (otp = cachedOtp) {
+        await authRepo.updateUserStatus(userExisting.email, userExisting.isVerified = true)
     }
 
     // notify user of his verificatin
-    await sendEmail(userExist.email,
+    await sendEmail(userExisting.email,
         "verificaton completed",
-        `<h2>Your accout has been Verified Successfully</h2> <br> <p>Now you can login welcome to our community <b>${userExist.name}</b> , ENJOY❤️</p>`
+        `<h2>Your accout has been Verified Successfully</h2> <br> <p>Now you can login welcome to our community, ENJOY❤️</p>`
     );
 
+    //delete used otp
+    await cacheProvider.del(`OTP:${email}`);
 
-
-    await otpRepo.deleteOTP(email)
-
-    return userExist
+    return userExisting
 
 }
 
@@ -98,17 +99,19 @@ export async function login(email, password) {
     if (!checkPass) {
         throw new ApError("password is not correct", 400)
     }
+
     //generate JWT token
     const payload = {
         userId: checkUser._id,
         email: checkUser.email
     };
-    const token = await generateToken(payload, '1h')
+    const accessToken = await generateToken(payload, '1h')
     const refreshToken = generateRefreshToken(payload, '7d');
 
-    return { token, refreshToken }
+    return { accessToken, refreshToken }
 
 }
+
 export async function refreshAccessToken(incomingRefreshToken) {
     if (!incomingRefreshToken) {
         throw new ApError("Refresh token missing", 401);
@@ -129,8 +132,9 @@ export async function refreshAccessToken(incomingRefreshToken) {
             email: user.email
         };
 
-        const newAccessToken = generateAccessToken(payload, '7d');
+        const newAccessToken = generateAccessToken(payload, '1h');
         return newAccessToken;
+
     } catch (error) {
         throw new ApError("Invalid or expired refresh token", 403);
     }
@@ -142,16 +146,13 @@ export async function send0tp(email) {
     if (!user) throw userNotExist
 
     // delete old OTPs
-    await otpRepo.deleteOTP(email)
+    await cacheProvider.del(`OTP:${user.email}`)
 
     // 2. generate OTP and save it into DB
     const code = await generate0TPCode();
-    await otpRepo.createOTP({
-        code: code,
-        email: user.email,
-        expiredAt: new Date(Date.now() + timeToMS(5, "min"))
-    })
-    logger.info(code)
+
+    await cacheProvider.set(`OTP:${user.email}`, code, timeToMS(5, 'min'))
+
     // 3. send otp email
     await sendEmail(user.email, "Verify your email", `<p>Your OTP is: <h1>${code}</h1></p>`);
 
@@ -159,16 +160,16 @@ export async function send0tp(email) {
 
 export async function forgetPassword(email, code, newPassword) {
     // 1. check OTP
-    const CheckOtpCode = await otpRepo.findOtpByEmail(email)
-    if (!CheckOtpCode) throw OtpExpired
-    if (CheckOtpCode.code !== code) throw OtpNotMatch
+    const cachedOtp = await cacheProvider.get(`OTP:${email}`);
+    if (!cachedOtp) throw OtpExpired;
+    if (cachedOtp !== code) throw OtpNotMatch;
 
     // 2. update user password
     const hashPass = await hashPassword(newPassword)
     await authRepo.updateUserByEmail(email, { password: hashPass })
 
     //3. delete OTPs 
-    await otpRepo.deleteOTP(email)
+    await cacheProvider.del(`OTP:${email}`);
 }
 
 export async function loginWithGoogle(idToken) {
@@ -197,10 +198,15 @@ export async function getAllUsers() {
     const users = await authRepo.getAllUsers()
     return users
 }
+
 export async function ProfilePic(user, path) {
     if (user.profilePic) {
-        fs.unlinkSync(profilePic)
+        try {
+            fs.unlinkSync(user.profilePic);
+        } catch (e) {
+            
+        }
     }
 
-    await authRepo.updateUserByEmail(user.email, { profilePic: path })
+    await authRepo.updateUserByEmail(user.email, { profilePic: path });
 }
