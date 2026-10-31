@@ -23,6 +23,8 @@ export async function updateUserByEmail(email, updateData) {
     return User.findOneAndUpdate(
         { email },
         { $set: updateData },
+        { new: true }
+
     );
 }
 

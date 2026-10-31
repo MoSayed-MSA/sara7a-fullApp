@@ -41,6 +41,49 @@ export async function register(userData) {
     return createdUser;
 }
 
+export async function verify2StepOTP(email, code) {
+    // check user exist
+    const userExisting = await authRepo.findUserByEmail(email)
+    if (!userExisting) {
+        throw userNotExist
+    }
+
+    //check if user verified
+    if (userExisting.isVerified === false) {
+        throw userNotVerified
+    }
+
+    //check OTP exist
+    const cachedOtp = await cacheProvider.get(`OTP:${email}`);
+    if (!cachedOtp) {
+        throw OtpExpired
+    }
+
+
+    if (cachedOtp !== code) {
+        throw OtpNotMatch;
+    }
+
+    // make user verified
+    if (code = cachedOtp) {
+        await authRepo.updateUserStatus(email, userExisting.isVerified = true)
+    }
+
+    //delete used otp
+    await cacheProvider.del(`OTP:${email}`);
+
+    //generate JWT token
+    const payload = {
+        userId: userExisting._id,
+        email: userExisting.email
+    };
+    const accessToken = await generateToken(payload, '1h')
+    const refreshToken = generateRefreshToken(payload, '7d');
+
+    return { accessToken, refreshToken }
+
+}
+
 export async function verifyOTP(email, otp) {
     // check user exist
     const userExisting = await authRepo.findUserByEmail(email)
@@ -63,7 +106,6 @@ export async function verifyOTP(email, otp) {
         throw OtpNotMatch;
     }
 
-
     // make user verified
     if (otp = cachedOtp) {
         await authRepo.updateUserStatus(userExisting.email, userExisting.isVerified = true)
@@ -82,28 +124,65 @@ export async function verifyOTP(email, otp) {
 
 }
 
+export async function enable2StepVeification(email, otp) {
+    // check user exist
+    const userExisting = await authRepo.findUserByEmail(email)
+    if (!userExisting) {
+        throw userNotExist
+    }
+
+    //check OTP exist
+    const cachedOtp = await cacheProvider.get(`OTP:${email}`);
+    if (!cachedOtp) {
+        throw OtpExpired
+    }
+
+    if (cachedOtp !== otp) {
+        throw OtpNotMatch;
+    }
+
+    // enable 2 step 
+    if (otp = cachedOtp) {
+        await authRepo.updateUserByEmail(email, { twoStepVerification: true })
+    }
+
+    //delete used otp
+    await cacheProvider.del(`OTP:${email}`);
+}
+
 export async function login(email, password) {
 
     //check if user exist and ferified
-    const checkUser = await authRepo.findUserByEmail(email)
-    if (!checkUser) {
+    const user = await authRepo.findUserByEmail(email)
+    if (!user) {
         throw userNotExist
     }
-    if (checkUser.isVerified == false) {
-        throw userNotVerified
 
+    if (user.isVerified == false) {
+        throw userNotVerified
     }
 
     //check pasword
-    const checkPass = await comparePassword(password, checkUser.password)
+    const checkPass = await comparePassword(password, user.password)
     if (!checkPass) {
         throw new ApError("password is not correct", 400)
     }
 
+    //check two step verification
+    if (user.twoStepVerification === true) {
+        const code = generate0TPCode();
+
+        await cacheProvider.set(`OTP:${email}`, code, 180);
+
+        await sendEmail(email, '2 step verification email code', `<h3> Your OTP to Login is ${code}</h3>`);
+
+        return
+    }
+
     //generate JWT token
     const payload = {
-        userId: checkUser._id,
-        email: checkUser.email
+        userId: user._id,
+        email: user.email
     };
     const accessToken = await generateToken(payload, '1h')
     const refreshToken = generateRefreshToken(payload, '7d');
@@ -204,7 +283,7 @@ export async function ProfilePic(user, path) {
         try {
             fs.unlinkSync(user.profilePic);
         } catch (e) {
-            
+
         }
     }
 

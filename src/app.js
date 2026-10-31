@@ -1,8 +1,6 @@
 import express from 'express';
 import connectDB from "./lib/db/mongoose.js";
 import cors from 'cors';
-import multer from 'multer';
-
 import router from './routes.js';
 import globalErrorHandler from './lib/error/globalErrorHandeler.js';
 import { CorrelationId } from './lib/correlation/correlationId.js';

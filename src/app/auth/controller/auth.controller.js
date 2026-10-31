@@ -15,6 +15,16 @@ export async function register(req, res, next) {
     }
 }
 
+export async function enableTwoStepVeification(req, res, next) {
+    try {
+        const { email, otp } = validateBody(verifyOtpDto, req.body);
+
+        const user = await authService.enable2StepVeification(email, otp);
+        successResponse(res, 200, "2 Step Veification Enabled Succefully", user);
+    } catch (error) {
+        next(error);
+    }
+}
 export async function verifyOtp(req, res, next) {
     try {
         const { email, otp } = validateBody(verifyOtpDto, req.body);
@@ -26,22 +36,50 @@ export async function verifyOtp(req, res, next) {
     }
 }
 
-export async function signIn(req, res, next) {
+export async function login(req, res, next) {
     try {
         const { email, password } = validateBody(loginDto, req.body);
 
-        const { accessToken, refreshToken } = await authService.login(email, password);
+        const tokens = await authService.login(email, password);
 
-        res.cookie('access_token', accessToken, {
+        if (!tokens) {
+            return successResponse(res, 200, 'Check your inbox to verify OTP')
+        }
+
+        res.cookie('access_token', tokens.accessToken, {
             httpOnly: true,
-            maxAge: timeToMS(15, 'm')
+            maxAge: timeToMS(15, 'min')
         });
-        res.cookie('refresh_token', refreshToken, {
+        res.cookie('refresh_token', tokens.refreshToken, {
             httpOnly: true,
-            maxAge: timeToMS(7, 'd')
+            maxAge: timeToMS(7, 'day'),
+            path: "/api/auth/refresh-token",
+
         });
 
         successResponse(res, 200, "User logged in successfully");
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function verifyCodeToLogin(req, res, next) {
+    try {
+        const { email, code } = req.body;
+        const { accessToken, refreshToken } = await authService.verify2StepOTP(email, code);
+
+        res.cookie('access_token', accessToken, {
+            httpOnly: true,
+            maxAge: timeToMS(1, 'h')
+        });
+
+        res.cookie('refresh_token', refreshToken, {
+            httpOnly: true,
+            maxAge: timeToMS(7, 'day'),
+            path: "/api/auth/refresh-token"
+        });
+
+        return successResponse(res, 200, 'logged in succesfully')
     } catch (error) {
         next(error);
     }
@@ -54,7 +92,7 @@ export async function refresh(req, res, next) {
 
         res.cookie('access_token', newAccessToken, {
             httpOnly: true,
-            maxAge: timeToMS(15, 'm')
+            maxAge: timeToMS(15, 'min')
         });
 
         successResponse(res, 200, "Token refreshed successfully");
@@ -93,11 +131,11 @@ export async function loginWithGoogle(req, res, next) {
 
         res.cookie('access_token', accessToken, {
             httpOnly: true,
-            maxAge: timeToMS(15, 'm')
+            maxAge: timeToMS(15, 'min')
         });
         res.cookie('refresh_token', refreshToken, {
             httpOnly: true,
-            maxAge: timeToMS(7, 'd')
+            maxAge: timeToMS(7, 'day')
         });
 
         successResponse(res, 200, "Google login successful");
@@ -126,6 +164,7 @@ export async function getAllUsers(req, res, next) {
         next(error);
     }
 }
+
 export async function uploadProfilePic(req, res, next) {
     try {
         const user = req.user

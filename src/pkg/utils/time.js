@@ -6,6 +6,8 @@ export function timeToMS(time, unit) {
             return time * 60 * 1000;
         case "h":
             return time * 60 * 60 * 1000;
+        case "day":
+            return time * 24 * 60 * 60 * 1000;
         default:
             throw new Error("Invalid unit");
     }
