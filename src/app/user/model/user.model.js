@@ -1,4 +1,5 @@
 import { model, Schema } from 'mongoose';
+import { boolean } from 'zod';
 
 const userSchema = new Schema(
     {
@@ -36,6 +37,10 @@ const userSchema = new Schema(
         },
         isDeleted: {
             type: Boolean,
+            default: false
+        },
+        twoStepVerification: {
+            type: boolean,
             default: false
         }
     },

@@ -5,7 +5,7 @@ import { sendEmail } from "../../../lib/email/email.js";
 import { generate0TPCode } from "../../../pkg/utils/otps.js";
 import { ApError } from "../../../pkg/error/error.js";
 import { userExist, userNotExist, userNotSignUp, userNotVerified, userVerified } from "../../user/utils/error.js";
-import { generateToken } from "../../../lib/security/jwt.js";
+import { generateRefreshToken, generateToken } from "../../../lib/security/jwt.js";
 import { comparePassword, hashPassword } from "../../../lib/security/bcrypt.js";
 import { OtpExpired, OtpNotMatch } from "../utils/error.js";
 import { logger } from "../../../pkg/logger/logger.js";
@@ -104,9 +104,36 @@ export async function login(email, password) {
         email: checkUser.email
     };
     const token = await generateToken(payload, '1h')
+    const refreshToken = generateRefreshToken(payload, '7d');
 
-    return token
+    return { token, refreshToken }
 
+}
+export async function refreshAccessToken(incomingRefreshToken) {
+    if (!incomingRefreshToken) {
+        throw new ApError("Refresh token missing", 401);
+    }
+
+    try {
+        // Verify signature and expiration using the refresh secret
+        const decoded = verifyRefreshToken(incomingRefreshToken);
+
+        // Optional: Check if user still exists and isn't deleted
+        const user = await authRepo.findUserByEmail(decoded.email);
+        if (!user || user.isDeleted) {
+            throw new ApError("User no longer exists", 403);
+        }
+
+        const payload = {
+            userId: user._id,
+            email: user.email
+        };
+
+        const newAccessToken = generateAccessToken(payload, '7d');
+        return newAccessToken;
+    } catch (error) {
+        throw new ApError("Invalid or expired refresh token", 403);
+    }
 }
 
 export async function send0tp(email) {
@@ -160,8 +187,10 @@ export async function loginWithGoogle(idToken) {
         proiver: 'Google',
         isVerified: true
     })
-    return generateToken({ email: new_user.email, id: new_user._id })
+    const token = generateToken({ email: new_user.email, id: new_user._id })
+    const refreshToken = generateRefreshToken({ email: new_user.email, id: new_user._id }, '7d')
 
+    return { token, refreshToken }
 }
 
 export async function getAllUsers() {

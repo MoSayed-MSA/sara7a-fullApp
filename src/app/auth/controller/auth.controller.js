@@ -30,13 +30,34 @@ export async function signIn(req, res, next) {
     try {
         const { email, password } = validateBody(loginDto, req.body);
 
-        const token = await authService.login(email, password);
-        res.cookie('access_token', token, {
-            httpOnly: true,
-            maxAge: timeToMS(1, 'h')
-        });
-        successResponse(res, 200, "User logged in successfully");
+        const { accessToken, refreshToken } = await authService.login(email, password);
 
+        res.cookie('access_token', accessToken, {
+            httpOnly: true,
+            maxAge: timeToMS(15, 'm')
+        });
+        res.cookie('refresh_token', refreshToken, {
+            httpOnly: true,
+            maxAge: timeToMS(7, 'd')
+        });
+
+        successResponse(res, 200, "User logged in successfully");
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function refresh(req, res, next) {
+    try {
+        const incomingRefreshToken = req.cookies?.refresh_token;
+        const newAccessToken = await authService.refreshAccessToken(incomingRefreshToken);
+
+        res.cookie('access_token', newAccessToken, {
+            httpOnly: true,
+            maxAge: timeToMS(15, 'm')
+        });
+
+        successResponse(res, 200, "Token refreshed successfully");
     } catch (error) {
         next(error);
     }
@@ -67,16 +88,33 @@ export async function forgetPassword(req, res, next) {
 
 export async function loginWithGoogle(req, res, next) {
     try {
-        const { idToken } = req.body
+        const { idToken } = req.body;
+        const { accessToken, refreshToken } = await authService.loginWithGoogle(idToken);
 
-        const token = await authService.loginWithGoogle(idToken)
-
-        res.cookie('access_token', token, {
+        res.cookie('access_token', accessToken, {
             httpOnly: true,
-            maxAge: timeToMS(1, 'h')
-        }).sendStatus(204)
+            maxAge: timeToMS(15, 'm')
+        });
+        res.cookie('refresh_token', refreshToken, {
+            httpOnly: true,
+            maxAge: timeToMS(7, 'd')
+        });
+
+        successResponse(res, 200, "Google login successful");
     } catch (err) {
         next(err);
+    }
+}
+
+export async function logout(req, res, next) {
+    try {
+        //logging out simply clears the cookies on the client side
+        res.clearCookie('access_token');
+        res.clearCookie('refresh_token');
+
+        successResponse(res, 200, "Logged out successfully");
+    } catch (error) {
+        next(error);
     }
 }
 

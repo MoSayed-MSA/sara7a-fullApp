@@ -16,6 +16,7 @@ const envSchema = z.object({
     DATABASE_URL: z.string(),
 
     JWT_SECRET: z.string(),
+    JWT_REFRESH_SECRET: z.string(),
     CLIENT_ID: z.string()
 });
 
@@ -37,5 +38,6 @@ export const env = {
         pass: parsed.EMAIL_PASS
     },
     databaseUrl: parsed.DATABASE_URL,
-    jwtSecret: parsed.JWT_SECRET
+    jwtSecret: parsed.JWT_SECRET,
+    jwtRefreshSecret: parsed.JWT_REFRESH_SECRET
 }
