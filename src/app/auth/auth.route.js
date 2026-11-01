@@ -6,16 +6,16 @@ import { idempotency } from '../../lib/idempotency/idempotency.js';
 import { uploadSingleFile } from '../../pkg/media/multer.js';
 import { guard } from '../../lib/middleware/guard.js';
 import { timeToMS } from '../../pkg/utils/time.js';
-import { ApError } from '../../pkg/error/error.js';
+import { AppError } from '../../pkg/error/error.js';
 
 const authRouter = Router();
 
 const authLimiter = rateLimit({
     windowMs: timeToMS(5, 'min'),
-    max: 5, 
+    max: 5,
     standardHeaders: 'draft-7',
     handler: function (req, res, next) {
-        next(new ApError('Too many requests, please try again later.', 429));
+        next(new AppError('Too many requests, please try again later.', 429));
     }
 });
 

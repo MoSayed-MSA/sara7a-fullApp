@@ -3,7 +3,7 @@ import * as otpRepo from "../repository/otp.repository.js";
 import { timeToMS } from "../../../pkg/utils/time.js";
 import { sendEmail } from "../../../lib/email/email.js";
 import { generate0TPCode } from "../../../pkg/utils/otps.js";
-import { ApError } from "../../../pkg/error/error.js";
+import { AppError } from "../../../pkg/error/error.js";
 import { userExist, userNotExist, userNotSignUp, userNotVerified, userVerified } from "../../user/utils/error.js";
 import { generateRefreshToken, generateToken } from "../../../lib/security/jwt.js";
 import { comparePassword, hashPassword } from "../../../lib/security/bcrypt.js";
@@ -165,7 +165,7 @@ export async function login(email, password) {
     //check pasword
     const checkPass = await comparePassword(password, user.password)
     if (!checkPass) {
-        throw new ApError("password is not correct", 400)
+        throw new AppError("password is not correct", 400)
     }
 
     //check two step verification
@@ -193,7 +193,7 @@ export async function login(email, password) {
 
 export async function refreshAccessToken(incomingRefreshToken) {
     if (!incomingRefreshToken) {
-        throw new ApError("Refresh token missing", 401);
+        throw new AppError("Refresh token missing", 401);
     }
 
     try {
@@ -203,7 +203,7 @@ export async function refreshAccessToken(incomingRefreshToken) {
         // Optional: Check if user still exists and isn't deleted
         const user = await authRepo.findUserByEmail(decoded.email);
         if (!user || user.isDeleted) {
-            throw new ApError("User no longer exists", 403);
+            throw new AppError("User no longer exists", 403);
         }
 
         const payload = {
@@ -215,7 +215,7 @@ export async function refreshAccessToken(incomingRefreshToken) {
         return newAccessToken;
 
     } catch (error) {
-        throw new ApError("Invalid or expired refresh token", 403);
+        throw new AppError("Invalid or expired refresh token", 403);
     }
 }
 

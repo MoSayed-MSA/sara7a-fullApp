@@ -1,11 +1,11 @@
 import multer, { diskStorage } from 'multer';
-import { ApError } from '../error/error.js';
+import { AppError } from '../error/error.js';
 
 function fileUpload(allowedTypes = ['image/png', 'image/jpeg']) {
     return multer({
         fileFilter: function (req, file, cb) {
             if (!allowedTypes.includes(file.mimetype)) {
-                return cb(new ApError('invalid file format', 400), false)
+                return cb(new AppError('invalid file format', 400), false)
             }
             cb(null, true)
         },

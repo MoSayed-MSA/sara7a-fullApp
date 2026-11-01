@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
 import { OAuth2Client } from 'google-auth-library'
-import { ApError } from '../../pkg/error/error.js';
+import { AppError } from '../../pkg/error/error.js';
 import { env } from '../config/env.js';
 
 export async function verifyGoogleAccount(idToken) {
@@ -12,7 +12,7 @@ export async function verifyGoogleAccount(idToken) {
         })
         return ticket.getPayload()
     } catch (error) {
-        throw new ApError('invalid Google Token', 403)
+        throw new AppError('invalid Google Token', 403)
     }
 }
 
